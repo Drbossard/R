@@ -1,0 +1,118 @@
+---
+title: "Open Policing Project"
+author: "Dayton Bossard"
+date: "11/14/2019"
+output: html_document
+---
+##Setup 
+Install the correct packages and load the libraries in.
+If you have not installed the `tidyverse` package, make sure you uncomment the below lines.
+
+```{r setup, message=F, warning=F}
+#install.packages("tidyverse") 
+#install.packages("lubridate")
+library(tidyverse)
+library(lubridate)
+
+#load the data
+wichita <- read_csv("https://datajournalism.tech/wp-content/uploads/2019/10/wichita.csv")
+
+
+population <- tibble( subject_race=c("asian/pacific islander", "black","hispanic","other/unknown","white"), num_people =c(19262, 42679, 63659, 13451, 246343))
+```
+
+## Data Analysis
+Explore the dataset provided by Stanford University. See more on their website
+ <https://openpolicing.stanford.edu>.
+ 
+```{r discover-the-dataset}
+View(wichita) #to view the data table
+str(wichita)  #to see the characteristics of variables
+glimpse (wichita) #to see a short summary of values in each column
+colnames(wichita) #to view column headers
+
+```
+After viewing the dataset, you can analyze it to see the min, max, mean, median and other values for each variable. These are called descriptive statistics.
+
+```{r run-basic-descriptive-statistics}
+summary(wichita)
+```
+
+There are some verbs that you need to memorize. See more at <https://learn.r-journalism.com/en/wrangling/dplyr/dplyr/>
+First, the `select` verb helps you grab column(s) in a dataset
+
+```{r select-one-or-more-columns}
+race<- select(wichita,subject_race) #to select the subject_race columns
+
+```
+
+Second, the `group_by` verb helps you categorize your values into fewer groups. The `summarize` verb always goes along with the `group_by` to help count the number of values for each group and compute the percentage of each group over the whole population.
+
+```{r calculate-statistics-for-each-level-of-a-column }
+race <- group_by(race, subject_race) %>% summarize(value=n(),  prop=value/nrow(.))
+
+View(race) # to view the `race` table
+
+```
+
+
+```{r join-two-tables}
+stops<-left_join(race, population, by = "subject_race")
+```
+
+```{r}
+stops <- mutate(stops,stop_rate=value/num_people)
+```
+
+
+##Data Visualization
+We will need certain packages to be installed and called before creating our charts.
+
+###Bar Chart
+```{r bar-chart}
+
+#make the plot
+
+bar <- ggplot(stops,
+       aes(x=reorder(subject_race,stop_rate), y=stop_rate))+
+  geom_bar(stat="identity", 
+           position="identity", 
+           fill="yellow")+
+  geom_hline(yintercept = 0) +
+  labs(title="Stopped Drivers by Race",
+       subtitle = "African American drivers got stopped the most in the city of Wichita Kansas")+
+  coord_flip()
+
+options(scipen=10000)
+
+bar
+```
+
+###Interactive Map with leaflet
+```{r}
+#install.packages("httpuv")
+#install.packages("leaflet")
+library(httpuv)
+library(leaflet)
+m <- leaflet() %>% 
+  addTiles() %>% 
+  setView(lng=  -97.317163, lat= 37.685327, zoom=16) %>% 
+  addMarkers(lng= -97.317163, lat= 37.685327,  popup="Wichita, KS")
+
+m
+```
+
+
+```{r}
+race <- colorFactor(c("coral1", "black", "yellow", "darkolivegreen", "darkgrey"), domain=c("white", "black", "asian/pacific islander", "hispanic", "other/unknown"), ordered=TRUE)
+m2<- leaflet(wichita) %>%
+  addProviderTiles(providers$OpenStreetMap) %>% 
+  setView(lng=-97.31716337, lat= 37.685327, zoom=11) %>% 
+  addCircleMarkers(~lng, ~lat, popup=paste("This is a", wichita$subject_race, "and", wichita$subject_sex, "driver."), weight= 1, radius=2, color=~race(subject_race), stroke=F, fillOpacity=1)
+
+m2
+```
+
+
+
+
